@@ -60,6 +60,7 @@ jobs:
           output_file_path: reports/checkov.json
 
       - name: Upload Checkov report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: checkov-report
