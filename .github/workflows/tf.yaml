@@ -1,6 +1,10 @@
 name: Terraform Workflow
 
 on:
+  
+#   pull_request:
+#     paths:
+#       - 'eks-install/**'
   workflow_dispatch:
     inputs:
 
@@ -51,7 +55,6 @@ jobs:
         with:
           directory: eks-install
           framework: terraform
-          check: CIS
           skip_check: CKV_AWS_41
           output_format: json
           output_file_path: reports/checkov.json
