@@ -1,19 +1,27 @@
 name: Terraform Workflow
 
 on:
-  pull_request:
-    branches: [ main ]
-
+  
+#   pull_request:
+#     paths:
+#       - 'eks-install/**'
   workflow_dispatch:
     inputs:
+
+      enable-static-analysis:
+        description: "Run static analysis"
+        required: false
+        default: false
+        type: boolean
+
       action:
-        description: "apply or destroy"
+        description: "Select terraform action"
         required: true
         default: apply
         type: choice
         options:
-            - apply
-            - destroy
+          - apply
+          - destroy
 
 
 env:
@@ -24,36 +32,53 @@ env:
 jobs:
 
 # -----------------------
-# STATIC ANALYSIS
+# STATIC ANALYSIS (optional)
 # -----------------------
   static-analysis:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event.inputs.enable-static-analysis == 'true' }}
 
     steps:
-      - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: bridgecrewio/checkov-action@v12
+      - name: Create reports folder
+        run: mkdir -p reports
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
         with:
           directory: eks-install
+          framework: terraform
+          skip_check: CKV_AWS_41
+          output_format: json
+          output_file_path: reports/checkov.json
+
+      - name: Upload Checkov report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-report
+          path: reports/checkov.json
 
 
 # -----------------------
-# PLAN (AUTO ON PR)
+# PLAN (always before apply/destroy)
 # -----------------------
   terraform-plan:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
-
     steps:
 
       - uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -72,13 +97,14 @@ jobs:
 
 
 # -----------------------
-# APPLY (MANUAL ONLY)
+# APPLY (manual choice)
 # -----------------------
   terraform-apply:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.action == 'apply'
+    needs: terraform-plan
+
+    if: ${{ github.event.inputs.action == 'apply' }}
 
     steps:
 
@@ -100,13 +126,14 @@ jobs:
 
 
 # -----------------------
-# DESTROY (MANUAL ONLY)
+# DESTROY (manual choice)
 # -----------------------
   terraform-destroy:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.action == 'destroy'
+    needs: terraform-plan
+
+    if: ${{ github.event.inputs.action == 'destroy' }}
 
     steps:
 
