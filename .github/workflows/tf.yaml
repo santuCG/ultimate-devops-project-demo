@@ -30,34 +30,38 @@ jobs:
 # -----------------------
 # STATIC ANALYSIS (optional)
 # -----------------------
- static-analysis:
+  static-analysis:
     runs-on: ubuntu-latest
- 
+
     if: ${{ github.event.inputs.enable-static-analysis == 'true' }}
 
     steps:
 
-        - name: Checkout
-          uses: actions/checkout@v4
- 
-        - name: Setup Terraform
-          uses: hashicorp/setup-terraform@v3
- 
-        - name: Run Checkov
-          uses: bridgecrewio/checkov-action@v12
-          with:
-            directory: eks-install
-            framework: terraform
-            check: CIS
-            skip_check: CKV_AWS_41
-            output_format: json
-            output_file_path: reports/checkov.json
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        - name: Upload Checkov report
-          uses: actions/upload-artifact@v4
-          with:
-            name: checkov-report
-            path: reports/checkov.json
+      - name: Create reports folder
+        run: mkdir -p reports
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: eks-install
+          framework: terraform
+          check: CIS
+          skip_check: CKV_AWS_41
+          output_format: json
+          output_file_path: reports/checkov.json
+
+      - name: Upload Checkov report
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-report
+          path: reports/checkov.json
+
 
 # -----------------------
 # PLAN (always before apply/destroy)
