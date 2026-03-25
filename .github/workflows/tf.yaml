@@ -1,0 +1,127 @@
+name: Terraform Workflow
+
+on:
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "apply or destroy"
+        required: true
+        default: apply
+        type: choice
+        options:
+            - apply
+            - destroy
+
+
+env:
+  TF_WORKING_DIR: eks-install
+  AWS_REGION: us-west-2
+
+
+jobs:
+
+# -----------------------
+# STATIC ANALYSIS
+# -----------------------
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: eks-install
+
+
+# -----------------------
+# PLAN (AUTO ON PR)
+# -----------------------
+  terraform-plan:
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'pull_request'
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - run: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - run: terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+
+# -----------------------
+# APPLY (MANUAL ONLY)
+# -----------------------
+  terraform-apply:
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.action == 'apply'
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - run: terraform apply -auto-approve
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+
+# -----------------------
+# DESTROY (MANUAL ONLY)
+# -----------------------
+  terraform-destroy:
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.action == 'destroy'
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - run: terraform destroy -auto-approve
+        working-directory: ${{ env.TF_WORKING_DIR }}
