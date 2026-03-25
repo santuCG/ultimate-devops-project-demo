@@ -1,24 +1,23 @@
 name: Terraform Workflow
 
 on:
-
   workflow_dispatch:
     inputs:
+
       enable-static-analysis:
-        description: "enable static analysis on PRs"
+        description: "Run static analysis"
         required: false
         default: false
         type: boolean
+
       action:
-        description: "apply or destroy"
+        description: "Select terraform action"
         required: true
         default: apply
         type: choice
         options:
-            - apply
-            - destroy
-
-
+          - apply
+          - destroy
 
 
 env:
@@ -29,36 +28,38 @@ env:
 jobs:
 
 # -----------------------
-# STATIC ANALYSIS
+# STATIC ANALYSIS (optional)
 # -----------------------
   static-analysis:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event.inputs.enable-static-analysis == 'true' }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
 
-      - uses: bridgecrewio/checkov-action@v12
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
         with:
           directory: eks-install
 
 
 # -----------------------
-# PLAN (AUTO ON PR)
+# PLAN (always before apply/destroy)
 # -----------------------
   terraform-plan:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
+    needs: [static-analysis]
 
     steps:
 
       - uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -77,13 +78,14 @@ jobs:
 
 
 # -----------------------
-# APPLY (MANUAL ONLY)
+# APPLY (manual choice)
 # -----------------------
   terraform-apply:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.action == 'apply'
+    needs: terraform-plan
+
+    if: ${{ github.event.inputs.action == 'apply' }}
 
     steps:
 
@@ -105,13 +107,14 @@ jobs:
 
 
 # -----------------------
-# DESTROY (MANUAL ONLY)
+# DESTROY (manual choice)
 # -----------------------
   terraform-destroy:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.action == 'destroy'
+    needs: terraform-plan
+
+    if: ${{ github.event.inputs.action == 'destroy' }}
 
     steps:
 
